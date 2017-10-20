@@ -28,12 +28,12 @@ include_directories(
 
 link_directories(lib)
 
-add_executable(prp src/read_xl.cpp)
+#add_executable(prp src/read_xl.cpp)
 
-target_link_libraries(prp
-  ${catkin_LIBRARIES}
-  libxl.so
-)
+#target_link_libraries(prp
+#  ${catkin_LIBRARIES}
+#  libxl.so
+#)
 
 
 add_executable(off_test src/off_test.cpp)

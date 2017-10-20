@@ -33,6 +33,8 @@ void pose_cb(const geometry_msgs::PoseStamped msg){
 
 vector<double> vx;
 vector<double> vy;
+vector<double> pos_x;
+vector<double> pos_y;
 
 void data_init()
 {
@@ -40,15 +42,15 @@ void data_init()
 	book->setKey("chenjie", "linux-2c232e010dcbe60168b76d6da0f5hfga"); 
 	if(book)
 	{
-		if(book->load("/home/ubuntu/catkin_ws/src/offboard_simulation/data/100Hz.xls"))
+		if(book->load("/home/ubuntu/catkin_ws/src/offboard_simulation/data/CJdata20Hz.xls"))
 		{
 			Sheet* sheet = book->getSheet(0);
 			if(sheet)
 			{
 				for(int row = sheet->firstRow(); row < sheet->lastRow(); ++row)
 				{	
-					vx.push_back(sheet->readNum(row-1, 0));
-					vy.push_back(sheet->readNum(row-1, 1));	
+					pos_x.push_back(sheet->readNum(row-1, 0));
+					pos_y.push_back(sheet->readNum(row-1, 1));
 				}
 			}
 		}
@@ -87,7 +89,7 @@ int main(int argc, char **argv)
 			("mavros/set_mode");
 
 	//the setpoint publishing rate MUST be faster than 2Hz
-	ros::Rate rate(100);
+	ros::Rate rate(20);
 
 	data_init();
 	bool arrived = false;
@@ -140,30 +142,40 @@ int main(int argc, char **argv)
 		arrived = isArrived(local_pos, goal_pos);
 		if(arrived)
 		{
-			for(int i = 0 ; i < vx.size(); i++)
+			for(int i = 0 ; i < pos_x.size(); i++)
 			{
-				geometry_msgs::TwistStamped cmd;
-				cmd.twist.linear.x = vx[i];
-				cmd.twist.linear.y = vy[i];
-				cmd.twist.linear.z = 0;
-				cmd.twist.angular.x = 0;
-				cmd.twist.angular.y = 0;
-				cmd.twist.angular.z = 0;
-				local_vel_pub.publish(cmd);
+				// geometry_msgs::TwistStamped cmd;
+				// cmd.twist.linear.x = vx[i];
+				// cmd.twist.linear.y = vy[i];
+				// cmd.twist.linear.z = 0;
+				// cmd.twist.angular.x = 0;
+				// cmd.twist.angular.y = 0;
+				// cmd.twist.angular.z = 0;
+				// local_vel_pub.publish(cmd);
+				geometry_msgs::PoseStamped  pos_sp;
+				pos_sp.pose.position.x = pos_x[i];
+				pos_sp.pose.position.y = pos_y[i];
+				pos_sp.pose.position.z = 2;
+				local_pos_pub.publish(pos_sp);
 				ros::spinOnce();
 				rate.sleep();
 			}
 
 			while(ros::ok())
 			{
-				geometry_msgs::TwistStamped cmd;
-				cmd.twist.linear.x = 0;
-				cmd.twist.linear.y = 0;
-				cmd.twist.linear.z = 0;
-				cmd.twist.angular.x = 0;
-				cmd.twist.angular.y = 0;
-				cmd.twist.angular.z = 0;
-				local_vel_pub.publish(cmd);
+				// geometry_msgs::TwistStamped cmd;
+				// cmd.twist.linear.x = 0;
+				// cmd.twist.linear.y = 0;
+				// cmd.twist.linear.z = 0;
+				// cmd.twist.angular.x = 0;
+				// cmd.twist.angular.y = 0;
+				// cmd.twist.angular.z = 0;
+				// local_vel_pub.publish(cmd);
+				geometry_msgs::PoseStamped  pos_sp;
+				pos_sp.pose.position.x = pos_x[pos_x.size()-1];
+				pos_sp.pose.position.y = pos_y[pos_x.size()-1];
+				pos_sp.pose.position.z = 2;
+				local_pos_pub.publish(pos_sp);
 				ros::spinOnce();
 				rate.sleep();
 			}
