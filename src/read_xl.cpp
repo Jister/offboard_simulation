@@ -42,7 +42,7 @@ void data_init()
 	book->setKey("chenjie", "linux-2c232e010dcbe60168b76d6da0f5hfga"); 
 	if(book)
 	{
-		if(book->load("/home/ubuntu/catkin_ws/src/offboard_simulation/data/CJdata20Hz.xls"))
+		if(book->load("/home/ubuntu/catkin_ws/src/offboard_simulation/data/data20Hz_insert.xls"))
 		{
 			Sheet* sheet = book->getSheet(0);
 			if(sheet)
@@ -51,6 +51,8 @@ void data_init()
 				{	
 					pos_x.push_back(sheet->readNum(row-1, 0));
 					pos_y.push_back(sheet->readNum(row-1, 1));
+					vx.push_back(sheet->readNum(row-1, 2));
+					vy.push_back(sheet->readNum(row-1, 3));
 				}
 			}
 		}
@@ -93,6 +95,7 @@ int main(int argc, char **argv)
 
 	data_init();
 	bool arrived = false;
+	bool int_init = false;
 
 	// wait for FCU connection
 	while(ros::ok() && current_state.connected){
@@ -144,19 +147,38 @@ int main(int argc, char **argv)
 		{
 			for(int i = 0 ; i < pos_x.size(); i++)
 			{
-				// geometry_msgs::TwistStamped cmd;
-				// cmd.twist.linear.x = vx[i];
-				// cmd.twist.linear.y = vy[i];
-				// cmd.twist.linear.z = 0;
-				// cmd.twist.angular.x = 0;
-				// cmd.twist.angular.y = 0;
-				// cmd.twist.angular.z = 0;
-				// local_vel_pub.publish(cmd);
-				geometry_msgs::PoseStamped  pos_sp;
-				pos_sp.pose.position.x = pos_x[i];
-				pos_sp.pose.position.y = pos_y[i];
-				pos_sp.pose.position.z = 2;
-				local_pos_pub.publish(pos_sp);
+				double kp = 1.2, ki = 0.1;
+				Vector2f err;
+				static Vector2f err_int;
+				if(!int_init)
+				{
+					err_int(0) = 0;
+					err_int(1) = 0;
+					int_init = true;
+				}
+				
+				err(0) = pos_x[i] - local_pos(0);
+				err(1) = pos_y[i] - local_pos(1);
+
+				double vx_pos = kp * err(0) ;//+ ki * err_int(0);
+				double vy_pos = kp * err(1) ;//+ ki * err_int(1);
+				geometry_msgs::TwistStamped cmd;
+				cmd.twist.linear.x = 0.6*vx[i] + vx_pos;
+				cmd.twist.linear.y = 0.6*vy[i] + vy_pos;
+				cmd.twist.linear.z = 0;
+				cmd.twist.angular.x = 0;
+				cmd.twist.angular.y = 0;
+				cmd.twist.angular.z = 0;
+				local_vel_pub.publish(cmd);
+
+				err_int += err/20;
+
+				// geometry_msgs::PoseStamped  pos_sp;
+				// pos_sp.pose.position.x = pos_x[i];
+				// pos_sp.pose.position.y = pos_y[i];
+				// pos_sp.pose.position.z = 2;
+				// local_pos_pub.publish(pos_sp);
+
 				ros::spinOnce();
 				rate.sleep();
 			}
