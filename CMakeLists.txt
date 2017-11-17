@@ -26,6 +26,11 @@ include_directories(
 #  ${catkin_LIBRARIES}
 #)
 
+add_executable(offb_test src/test.cpp)
+target_link_libraries(offb_test
+  ${catkin_LIBRARIES}
+)
+
 link_directories(lib)
 
 add_executable(prp src/read_xl.cpp)

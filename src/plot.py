@@ -15,14 +15,16 @@ if __name__ == '__main__':
     rospy.Subscriber("/mavros/local_position/pose", PoseStamped, pos_callback)
     rate = rospy.Rate(10) 
 
-    data = xlrd.open_workbook('/home/ubuntu/catkin_ws/src/offboard_simulation/data/data20Hz_insert.xls')
+    data = xlrd.open_workbook('/home/ubuntu/catkin_ws/src/offboard_simulation/data/data20Hz_Z.xls')
+    #data = xlrd.open_workbook('/home/ubuntu/catkin_ws/src/offboard_simulation/data/data20Hz_insert.xls')
     table = data.sheets()[0]
     x1 = table.col_values(0)
     y1 = table.col_values(1)
 
     plt.plot(x1, y1, '-')
+    plt.plot([0,0], [0,10], 'k--',[0,10], [10,10], 'k--',[10,10], [10,0], 'k--',[10,0], [0,0], 'k--',)
     plt.axis('equal')
-    plt.axis([-1, 11, -1, 10])
+    plt.axis([-1, 11, -1, 11])
     plt.ion()
 
     while not rospy.is_shutdown():

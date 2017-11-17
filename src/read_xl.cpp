@@ -17,7 +17,8 @@ using namespace Eigen;
 using namespace std;
 
 Vector3f local_pos(0.0,0.0,0.0);
-Vector3f goal_pos(0.0,0.0,2.0);
+Vector3f local_vel(0.0,0.0,0.0);
+Vector3f goal_pos(1.0,1.0,2.0);
 
 mavros_msgs::State current_state;
 
@@ -31,6 +32,12 @@ void pose_cb(const geometry_msgs::PoseStamped msg){
 	local_pos(2) = msg.pose.position.z;
 }
 
+void vel_cb(const geometry_msgs::TwistStamped msg){
+	local_vel(0) = msg.twist.linear.x;
+	local_vel(1) = msg.twist.linear.y;
+	local_vel(2) = msg.twist.linear.z;
+}
+
 vector<double> vx;
 vector<double> vy;
 vector<double> pos_x;
@@ -42,7 +49,8 @@ void data_init()
 	book->setKey("chenjie", "linux-2c232e010dcbe60168b76d6da0f5hfga"); 
 	if(book)
 	{
-		if(book->load("/home/ubuntu/catkin_ws/src/offboard_simulation/data/data20Hz_insert.xls"))
+		if(book->load("/home/ubuntu/catkin_ws/src/offboard_simulation/data/data20Hz_Z.xls"))
+		//if(book->load("/home/ubuntu/catkin_ws/src/offboard_simulation/data/data20Hz_insert.xls"))
 		{
 			Sheet* sheet = book->getSheet(0);
 			if(sheet)
@@ -81,8 +89,16 @@ int main(int argc, char **argv)
 			("mavros/state", 10, state_cb);
 	ros::Subscriber position_sub = nh.subscribe<geometry_msgs::PoseStamped>
 			("mavros/local_position/pose", 10, pose_cb);
+	ros::Subscriber velcocity_sub = nh.subscribe<geometry_msgs::TwistStamped>
+			("mavros/local_position/velocity", 10, vel_cb);
+			
 	ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>
 			("mavros/setpoint_position/local", 10);
+
+	ros::Publisher set_pos_pub = nh.advertise<geometry_msgs::PoseStamped>
+			("position_sp", 10);
+	ros::Publisher set_vel_pub = nh.advertise<geometry_msgs::TwistStamped>
+			("velocity_sp", 10);
 	ros::Publisher local_vel_pub = nh.advertise<geometry_msgs::TwistStamped>
 			("mavros/setpoint_velocity/cmd_vel", 10);
 	ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>
@@ -104,9 +120,9 @@ int main(int argc, char **argv)
 	}
 
 	geometry_msgs::PoseStamped pose;
-	pose.pose.position.x = 0;
-	pose.pose.position.y = 0;
-	pose.pose.position.z = 2;
+	pose.pose.position.x = goal_pos(0);
+	pose.pose.position.y = goal_pos(1);
+	pose.pose.position.z = goal_pos(2);
 
 	//send a few setpoints before starting
 	for(int i = 100; ros::ok() && i > 0; --i){
@@ -147,7 +163,7 @@ int main(int argc, char **argv)
 		{
 			for(int i = 0 ; i < pos_x.size(); i++)
 			{
-				double kp = 1.2, ki = 0.1;
+				double kp = 1.5, ki = 0.1;
 				Vector2f err;
 				static Vector2f err_int;
 				if(!int_init)
@@ -163,8 +179,9 @@ int main(int argc, char **argv)
 				double vx_pos = kp * err(0) ;//+ ki * err_int(0);
 				double vy_pos = kp * err(1) ;//+ ki * err_int(1);
 				geometry_msgs::TwistStamped cmd;
-				cmd.twist.linear.x = 0.6*vx[i] + vx_pos;
-				cmd.twist.linear.y = 0.6*vy[i] + vy_pos;
+				cmd.header.stamp = ros::Time::now();
+				cmd.twist.linear.x =  vx_pos; //+vx[i]+0.1*(vx[i]-local_vel(0)) 
+				cmd.twist.linear.y =  vy_pos; //+vy[i]+0.1*(vy[i]-local_vel(1)) ;
 				cmd.twist.linear.z = 0;
 				cmd.twist.angular.x = 0;
 				cmd.twist.angular.y = 0;
@@ -178,6 +195,22 @@ int main(int argc, char **argv)
 				// pos_sp.pose.position.y = pos_y[i];
 				// pos_sp.pose.position.z = 2;
 				// local_pos_pub.publish(pos_sp);
+				geometry_msgs::PoseStamped pose_sp;
+				pose_sp.header.stamp = ros::Time::now();
+				pose_sp.pose.position.x = pos_x[i];
+				pose_sp.pose.position.y = pos_y[i];
+				pose_sp.pose.position.z = 2;
+				set_pos_pub.publish(pose_sp);
+
+				geometry_msgs::TwistStamped vel_sp;
+				vel_sp.header.stamp = ros::Time::now();
+				vel_sp.twist.linear.x = vx[i];
+				vel_sp.twist.linear.y = vy[i];
+				vel_sp.twist.linear.z = 0;
+				vel_sp.twist.angular.x = 0;
+				vel_sp.twist.angular.y = 0;
+				vel_sp.twist.angular.z = 0;
+				set_vel_pub.publish(vel_sp);
 
 				ros::spinOnce();
 				rate.sleep();
