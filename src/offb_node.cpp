@@ -6,6 +6,7 @@
 #include <mavros_msgs/State.h>
 #include "Eigen/Dense"
 
+
 #define Pi 					3.141592653
 #define NEAR_DISTANCE 		0.3
 #define OBSTACLE_REGION 	6.0
