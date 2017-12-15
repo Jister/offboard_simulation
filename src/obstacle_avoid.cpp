@@ -19,12 +19,12 @@ using namespace Eigen;
 mavros_msgs::State current_state;
 int obstacle[20][20]={0};
 int obstacle_count[20][20]={0};
-double k_att = 2.0;
-double k_rep = 2.0;
-double k_add = 1.0;
+double k_att = 15.0;
+double k_rep = 5.0;
+double k_add = 10.0;
 
 Vector3f local_pos(0.0,0.0,0.0);
-Vector3f goal_pos(20.0,0.0,2.0);
+Vector3f goal(20.0,0.0,2.0);
 double yaw = 0;
 
 bool takeoff_ready = false;
@@ -44,8 +44,24 @@ void rotate_2D(double yaw,  const Vector2f& input,  Vector2f& output)
     output = R * input;
 }
 
-void scanProcess(sensor_msgs::LaserScan& scan)
+
+void pose_cb(const geometry_msgs::PoseStamped msg){
+    local_pos(0) = msg.pose.position.x;
+    local_pos(1) = msg.pose.position.y;
+    local_pos(2) = msg.pose.position.z;
+
+    yaw = tf::getYaw(msg.pose.orientation);
+}
+
+void state_cb(const mavros_msgs::State::ConstPtr& msg)
 {
+    current_state = *msg;
+}
+
+void scanCallback(const sensor_msgs::LaserScan scan)
+{
+    memset(obstacle,0,sizeof(obstacle));
+    memset(obstacle_count,0,sizeof(obstacle_count));
     for (unsigned int i = 0; i < scan.ranges.size(); ++i)
     {
         double angle = scan.angle_min + i * scan.angle_increment;
@@ -61,6 +77,7 @@ void scanProcess(sensor_msgs::LaserScan& scan)
             if(o_j>19)o_j=19;
             obstacle[o_i][o_j] = 1;
             obstacle_count[o_i][o_j] ++;
+
         }else
         {
             continue;
@@ -75,31 +92,16 @@ void scanProcess(sensor_msgs::LaserScan& scan)
             {
                 obstacle[i][j] = 0;
             }
+            printf("%2d",obstacle[i][j]);
         }
+        printf("\n");
     }
-}
-
-void pose_cb(const geometry_msgs::PoseStamped msg){
-    local_pos(0) = msg.pose.position.x;
-    local_pos(1) = msg.pose.position.y;
-    local_pos(2) = msg.pose.position.z;
-
-    yaw = tf::getYaw(msg.pose.orientation);
-}
-
-void state_cb(const mavros_msgs::State::ConstPtr& msg)
-{
-    current_state = *msg;
-}
-
-void scanCallback(const sensor_msgs::LaserScan& scan)
-{
-    scanProcess(scan);
+    printf("\n");
 }
 
 bool isArrived(Vector3f& local, Vector3f& goal)
 {
-    if((local - goal).norm() < 0.1)
+    if((local - goal).norm() < 0.2)
     {
         return true;
     }
@@ -116,7 +118,7 @@ int main(int argc, char **argv)
 
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>("mavros/state", 10, state_cb);
     ros::Subscriber position_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 10, pose_cb);
-    ros::Subscriber scan_sub = nh.subscribe<sensor_msgs::LaserScan>("/scan_projected", 1, &scanCallback);
+    ros::Subscriber scan_sub = nh.subscribe<sensor_msgs::LaserScan>("/scan_projected", 1, scanCallback);
 
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10);
     ros::Publisher local_vel_pub = nh.advertise<geometry_msgs::TwistStamped>("mavros/setpoint_velocity/cmd_vel", 10);
@@ -134,9 +136,13 @@ int main(int argc, char **argv)
     }
 
     geometry_msgs::PoseStamped takeoff;
+    Vector3f takeoff_v;
     takeoff.pose.position.x = 0;
     takeoff.pose.position.y = 0;
     takeoff.pose.position.z = 2;
+    takeoff_v(0) = 0;
+    takeoff_v(1) = 0;
+    takeoff_v(2) = 2;
 
     //send a few setpoints before starting
     for(int i = 100; ros::ok() && i > 0; --i){
@@ -176,7 +182,7 @@ int main(int argc, char **argv)
         if(!takeoff_ready)
         {
             local_pos_pub.publish(takeoff);
-            if(isArrived(local_pos, takeoff))
+            if(isArrived(local_pos, takeoff_v))
             {
                 takeoff_ready = true;
             }
@@ -220,13 +226,14 @@ int main(int argc, char **argv)
                             ob(1) = (j+1)*10/20 - 5 - 10/20/2;
 
                             Vector2f ob_w;
-                            rotate_2D(yaw, ob, ob_w);
+                            rotate_2D(0, ob, ob_w);
 
                             Vector2f vec1 = ob_w - pos;
                             Vector2f vec2 = target - ob_w;
 
-                            if(vec1.dot(vec2)/(vec1.norm()*vec2.norm()) > 0.94)
+                            if(vec1.dot(vec2)/(vec1.norm()*vec2.norm()) > 0.90)
                             {
+                            	ROS_INFO("TEST");
                                 Vector2f goal_dir = target - pos;
                                 Vector2f new_dir;
                                 new_dir(1) = goal_dir(0);
@@ -236,10 +243,11 @@ int main(int argc, char **argv)
                                     new_dir(1) = -goal_dir(0);
                                     new_dir(0) = goal_dir(1);   
                                 }
-                                F_rep = F_rep + k_add*new_dir + k_rep*(1/(ob_w-pos).norm()-1/OBSTACLE_DIST)*(1/((ob_w-pos).norm())^2)*(pos-ob_w)*(target-pos).norm() + 1/2*k_rep*(1/(ob_w-pos).norm()-1/OBSTACLE_DIST)^2*(target-pos).normalize();
+                                F_rep = F_rep + k_add*new_dir + k_rep*(1/((ob_w-pos).norm())-1/OBSTACLE_DIST)/((ob_w-pos).norm()*(ob_w-pos).norm())*(pos-ob_w)*((target-pos).norm()) + 1/2*k_rep*(1/((ob_w-pos).norm())-1/OBSTACLE_DIST)*(1/((ob_w-pos).norm())-1/OBSTACLE_DIST)*(target-pos)/((target-pos).norm());
                             }else
                             {
-                                F_rep = F_rep + k_rep*(1/(ob_w-pos).norm()-1/OBSTACLE_DIST)*(1/((ob_w-pos).norm())^2)*(pos-ob_w)*(target-pos).norm() + 1/2*k_rep*(1/(ob_w-pos).norm()-1/OBSTACLE_DIST)^2*(target-pos).normalize();
+
+                                F_rep = F_rep + k_rep*(1/((ob_w-pos).norm())-1/OBSTACLE_DIST)/((ob_w-pos).norm()*(ob_w-pos).norm())*(pos-ob_w)*((target-pos).norm()) + 1/2*k_rep*(1/((ob_w-pos).norm())-1/OBSTACLE_DIST)*(1/((ob_w-pos).norm())-1/OBSTACLE_DIST)*(target-pos)/((target-pos).norm());
                             }
                         }
                     }
@@ -249,10 +257,10 @@ int main(int argc, char **argv)
                 F = F_att + F_rep;
 
                 geometry_msgs::TwistStamped cmd;
-                double speed = 1.0;
+                double speed = 0.5;
 
-                cmd.twist.linear.x = (F.normalize())(0)*speed;
-                cmd.twist.linear.y = (F.normalize())(1)*speed;
+                cmd.twist.linear.x = (F/F.norm())(0)*speed;
+                cmd.twist.linear.y = (F/F.norm())(1)*speed;
                 cmd.twist.linear.z = 0;
                 cmd.twist.angular.x = 0;
                 cmd.twist.angular.y = 0;
