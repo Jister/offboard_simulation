@@ -40,12 +40,6 @@ target_link_libraries(prp
   libxl.so
 )
 
-add_executable(obstacle src/obstacle_avoid.cpp)
-
-target_link_libraries(obstacle
-  ${catkin_LIBRARIES}
-)
-
 
 add_executable(off_test src/off_test.cpp)
 
