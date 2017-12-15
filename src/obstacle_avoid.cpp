@@ -1,8 +1,12 @@
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/State.h>
+#include "tf/transform_listener.h"
+#include "tf/transform_broadcaster.h"
+#include "tf/message_filter.h"
 
 #include <sensor_msgs/LaserScan.h>
 
@@ -17,7 +21,7 @@ int obstacle[20][20]={0};
 int obstacle_count[20][20]={0};
 double k_att = 2.0;
 double k_rep = 2.0;
-double k_add = 1.0
+double k_add = 1.0;
 
 Vector3f local_pos(0.0,0.0,0.0);
 Vector3f goal_pos(20.0,0.0,2.0);
@@ -26,7 +30,7 @@ double yaw = 0;
 bool takeoff_ready = false;
 
 
-void rotate_2D(double yaw,  const Vector2f& input,  Vector2f& output);
+void rotate_2D(double yaw,  const Vector2f& input,  Vector2f& output)
 {
     double sy = sinf(yaw);
     double cy = cosf(yaw);
@@ -112,7 +116,7 @@ int main(int argc, char **argv)
 
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>("mavros/state", 10, state_cb);
     ros::Subscriber position_sub = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 10, pose_cb);
-    ros::Subscriber scan_sub = nh..subscribe("scan_projected", 1, &scanCallback);
+    ros::Subscriber scan_sub = nh.subscribe<sensor_msgs::LaserScan>("/scan_projected", 1, &scanCallback);
 
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10);
     ros::Publisher local_vel_pub = nh.advertise<geometry_msgs::TwistStamped>("mavros/setpoint_velocity/cmd_vel", 10);
