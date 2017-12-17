@@ -19,15 +19,17 @@ using namespace Eigen;
 mavros_msgs::State current_state;
 int obstacle[20][20]={0};
 int obstacle_count[20][20]={0};
-double k_att = 15.0;
-double k_rep = 5.0;
-double k_add = 10.0;
+double k_att = 10.0;
+double k_rep = 10.0;
+double k_add = 1.0;
 
 Vector3f local_pos(0.0,0.0,0.0);
-Vector3f goal(20.0,0.0,2.0);
+Vector3f pos_sp(0.0,0.0,0.0);
+Vector3f goal(30.0,0.0,2.0);
 double yaw = 0;
 
 bool takeoff_ready = false;
+bool _reset_pos = true;
 
 
 void rotate_2D(double yaw,  const Vector2f& input,  Vector2f& output)
@@ -42,6 +44,12 @@ void rotate_2D(double yaw,  const Vector2f& input,  Vector2f& output)
     R(1,1) = cy;
 
     output = R * input;
+}
+
+void reset_sp(const Vector3f& pos,  Vector3f& setpoint)
+{
+	setpoint(0) = pos(0);
+	setpoint(1) = pos(1);
 }
 
 
@@ -188,13 +196,29 @@ int main(int argc, char **argv)
             }
         }else
         {
-            if(isArrived(local_pos, goal))
+        	if(_reset_pos)
+        	{
+        		reset_sp(local_pos,pos_sp);
+        		pos_sp(2) = 2;
+        		_reset_pos = false;
+        	}else
+        	{
+
+        	}
+            if(isArrived(pos_sp, goal))
             {
-                geometry_msgs::PoseStamped stop;
-                stop.pose.position.x = goal(0);
-                stop.pose.position.y = goal(1);
-                stop.pose.position.z = goal(2);
-                local_pos_pub.publish(stop);
+            	while(ros::ok())
+            	{
+	                geometry_msgs::PoseStamped stop;
+	                stop.pose.position.x = goal(0);
+	                stop.pose.position.y = goal(1);
+	                stop.pose.position.z = goal(2);
+	                local_pos_pub.publish(stop);
+
+	                ros::spinOnce();
+        			rate.sleep();
+            	}
+	
             }else
             {
                 Vector2f F_rep;
@@ -225,15 +249,20 @@ int main(int argc, char **argv)
                             ob(0) = (i+1)*10/20 - 5 - 10/20/2;
                             ob(1) = (j+1)*10/20 - 5 - 10/20/2;
 
+
+						    //printf("   %2.1f %2.1f",ob(0),ob(1));   
+
                             Vector2f ob_w;
                             rotate_2D(0, ob, ob_w);
+
+                            ob_w = ob_w + pos;
 
                             Vector2f vec1 = ob_w - pos;
                             Vector2f vec2 = target - ob_w;
 
                             if(vec1.dot(vec2)/(vec1.norm()*vec2.norm()) > 0.90)
                             {
-                            	ROS_INFO("TEST");
+                            	// ROS_INFO("TEST");
                                 Vector2f goal_dir = target - pos;
                                 Vector2f new_dir;
                                 new_dir(1) = goal_dir(0);
@@ -249,23 +278,37 @@ int main(int argc, char **argv)
 
                                 F_rep = F_rep + k_rep*(1/((ob_w-pos).norm())-1/OBSTACLE_DIST)/((ob_w-pos).norm()*(ob_w-pos).norm())*(pos-ob_w)*((target-pos).norm()) + 1/2*k_rep*(1/((ob_w-pos).norm())-1/OBSTACLE_DIST)*(1/((ob_w-pos).norm())-1/OBSTACLE_DIST)*(target-pos)/((target-pos).norm());
                             }
+                        }else
+                        {
+                        	//printf("   *   *  ");
                         }
                     }
+                    //printf("\n");
                 }
+                //printf("\n");
 
                 Vector2f F;
                 F = F_att + F_rep;
 
-                geometry_msgs::TwistStamped cmd;
-                double speed = 0.5;
+                // geometry_msgs::TwistStamped cmd;
+                // double speed = 0.5;
 
-                cmd.twist.linear.x = (F/F.norm())(0)*speed;
-                cmd.twist.linear.y = (F/F.norm())(1)*speed;
-                cmd.twist.linear.z = 0;
-                cmd.twist.angular.x = 0;
-                cmd.twist.angular.y = 0;
-                cmd.twist.angular.z = 0;
-                local_vel_pub.publish(cmd);
+                // cmd.twist.linear.x = (F/F.norm())(0)*speed;
+                // cmd.twist.linear.y = (F/F.norm())(1)*speed;
+                // cmd.twist.linear.z = 0;
+                // cmd.twist.angular.x = 0;
+                // cmd.twist.angular.y = 0;
+                // cmd.twist.angular.z = 0;
+                // local_vel_pub.publish(cmd);
+                double speed = 0.8;
+                pos_sp(0) = pos_sp(0) + (F/F.norm())(0)*speed*0.05;
+                pos_sp(1) = pos_sp(1) + (F/F.norm())(1)*speed*0.05;
+
+                geometry_msgs::PoseStamped pos_set;
+                pos_set.pose.position.x = pos_sp(0);
+                pos_set.pose.position.y = pos_sp(1);
+                pos_set.pose.position.z = pos_sp(2);
+                local_pos_pub.publish(pos_set);
             }
         }
         
