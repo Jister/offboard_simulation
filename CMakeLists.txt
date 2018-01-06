@@ -40,6 +40,13 @@ target_link_libraries(prp
   libxl.so
 )
 
+add_executable(fly_xl src/fly_xl.cpp)
+
+target_link_libraries(fly_xl
+  ${catkin_LIBRARIES}
+  libxl.so
+)
+
 add_executable(obstacle src/obstacle_avoid.cpp)
 
 target_link_libraries(obstacle
