@@ -144,6 +144,8 @@ int main(int argc, char **argv)
 	ros::Publisher vel_pub = n.advertise<px4_autonomy::Velocity>("/px4/cmd_vel", 1); 
 	ros::Rate loop_rate(20);
 
+	data_init();
+
 	while(ros::ok())
 	{
 		if(current_state.mode != "OFFBOARD")

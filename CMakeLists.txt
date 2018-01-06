@@ -53,6 +53,12 @@ target_link_libraries(obstacle
   ${catkin_LIBRARIES}
 )
 
+add_executable(fly_obstacle src/fly_obstacle.cpp)
+
+target_link_libraries(fly_obstacle
+  ${catkin_LIBRARIES}
+)
+
 
 add_executable(off_test src/off_test.cpp)
 
