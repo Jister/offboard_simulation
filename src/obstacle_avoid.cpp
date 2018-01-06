@@ -13,6 +13,7 @@
 #include "Eigen/Dense"
 
 #define OBSTACLE_DIST 5.0
+#define PI 3.14
 
 using namespace Eigen;
 
@@ -21,12 +22,16 @@ int obstacle[20][20]={0};
 int obstacle_count[20][20]={0};
 double k_att = 10.0;
 double k_rep = 10.0;
-double k_add = 1.0;
+double k_add = 2.0;
 
 Vector3f local_pos(0.0,0.0,0.0);
 Vector3f pos_sp(0.0,0.0,0.0);
 Vector3f goal(30.0,0.0,2.0);
 double yaw = 0;
+
+Vector2f v_dir;
+Vector2f last_v_dir;
+bool first = true;
 
 bool takeoff_ready = false;
 bool _reset_pos = true;
@@ -206,6 +211,7 @@ int main(int argc, char **argv)
 
         	}
             if(isArrived(pos_sp, goal))
+            // if(isArrived(local_pos, goal))
             {
             	while(ros::ok())
             	{
@@ -260,7 +266,7 @@ int main(int argc, char **argv)
                             Vector2f vec1 = ob_w - pos;
                             Vector2f vec2 = target - ob_w;
 
-                            if(vec1.dot(vec2)/(vec1.norm()*vec2.norm()) > 0.90)
+                            if(vec1.dot(vec2)/(vec1.norm()*vec2.norm()) > 0.95)
                             {
                             	// ROS_INFO("TEST");
                                 Vector2f goal_dir = target - pos;
@@ -300,15 +306,60 @@ int main(int argc, char **argv)
                 // cmd.twist.angular.y = 0;
                 // cmd.twist.angular.z = 0;
                 // local_vel_pub.publish(cmd);
-                double speed = 0.8;
-                pos_sp(0) = pos_sp(0) + (F/F.norm())(0)*speed*0.05;
-                pos_sp(1) = pos_sp(1) + (F/F.norm())(1)*speed*0.05;
+                if(first)
+                {
+                	first = false;
+                	v_dir(0) =  (F/F.norm())(0);
+	                v_dir(1) =  (F/F.norm())(1);
 
-                geometry_msgs::PoseStamped pos_set;
-                pos_set.pose.position.x = pos_sp(0);
-                pos_set.pose.position.y = pos_sp(1);
-                pos_set.pose.position.z = pos_sp(2);
-                local_pos_pub.publish(pos_set);
+	                double speed = 0.8;
+	                pos_sp(0) = pos_sp(0) + v_dir(0)*speed*0.05;
+	                pos_sp(1) = pos_sp(1) + v_dir(1)*speed*0.05;
+
+	                geometry_msgs::PoseStamped pos_set;
+	                pos_set.pose.position.x = pos_sp(0);
+	                pos_set.pose.position.y = pos_sp(1);
+	                pos_set.pose.position.z = pos_sp(2);
+	                local_pos_pub.publish(pos_set);	
+                }else
+                {
+                	last_v_dir = v_dir;
+	                v_dir(0) =  (F/F.norm())(0);
+	                v_dir(1) =  (F/F.norm())(1);
+
+	                double theta = atan2(v_dir(1),v_dir(0));
+	                double last_theta = atan2(last_v_dir(1),last_v_dir(0));
+	                double d_theta = theta - last_theta;
+	                if(d_theta > PI) d_theta = -(2*PI - d_theta);
+	                if(d_theta < -PI) d_theta = 2*PI + d_theta;
+	                if(fabs(d_theta > PI/180)) theta = last_theta + d_theta/fabs(d_theta)*PI/180;
+	                v_dir(0) =  cos(theta);
+	                v_dir(1) =  sin(theta);
+
+	                double speed = 0.8;
+	                pos_sp(0) = pos_sp(0) + v_dir(0)*speed*0.05;
+	                pos_sp(1) = pos_sp(1) + v_dir(1)*speed*0.05;
+	                // pos_sp(0) = local_pos(0) + v_dir(0)*10*0.05;
+	                // pos_sp(1) = local_pos(1) + v_dir(1)*10*0.05;
+
+	                geometry_msgs::PoseStamped pos_set;
+	                pos_set.pose.position.x = pos_sp(0);
+	                pos_set.pose.position.y = pos_sp(1);
+	                pos_set.pose.position.z = pos_sp(2);
+	                local_pos_pub.publish(pos_set);	
+
+	                // geometry_msgs::TwistStamped cmd;
+	                // double speed = 1.0;
+
+	                // cmd.twist.linear.x = v_dir(0)*speed;
+	                // cmd.twist.linear.y = v_dir(1)*speed;
+	                // cmd.twist.linear.z = 0;
+	                // cmd.twist.angular.x = 0;
+	                // cmd.twist.angular.y = 0;
+	                // cmd.twist.angular.z = 0;
+	                // local_vel_pub.publish(cmd);
+                }
+	                
             }
         }
         
